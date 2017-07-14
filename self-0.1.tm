@@ -2,7 +2,7 @@
 # slots with _ are used internally and should not be changed
 
 namespace eval self {
-    # cache method lookups as {obj method {epoch cachedEpoch method cachedMethod}}
+    # cache method lookups as {slotName obj cachedSlotValue}
     variable cachedLookup {}
     proc dispatch {obj state args} {
 	set slotArgs [lassign $args slotName]
@@ -13,13 +13,13 @@ namespace eval self {
 	    if {[llength $slotArgs]!=1} {
 		error "clone name"
 	    }
-       
+	    
 	    newObject $slotArgs $obj
 	    return 
 	}
 	if {$slotName eq "slot"} {
 	    variable cachedLookup
-	    set cachedLookup {}
+
 	    if {[llength $slotArgs]==2} {
 		# Value slot
 		set type v
@@ -30,12 +30,25 @@ namespace eval self {
 		error "slot name value | slot name args body"
 	    }
 	    set rest [lassign $slotArgs newSlotName]
+	    
+	    # invalidate cache
+	    if {$newSlotName eq "parents*"} {
+		# inheritance tree change invalidate cache
+		set cachedLookup {}
+	    } else {
+		# invalidate cache for this slot
+		dict unset cachedLookup $newSlotName
+	    }
+	    
+	    
 	    dict set state slots $newSlotName [list $type  {*}$rest]
 	    interp alias {} $obj {} self::dispatch $obj $state
 	    return
 	}
 	if {[dict exists $state slots $slotName]} {
 	    set slotValue [dict get $state slots $slotName]
+	} elseif {[findCachedSlot $obj $slotName] ne {}} {
+	    set slotValue [findCachedSlot $obj $slotName]
 	} elseif {[dict exists $state slots parents*]} {
 	    set parents	[evalSlot $obj [dict get $state slots parents*]]
 	    set slotValue [findInheritedSlot $obj $parents $slotName]
@@ -43,9 +56,7 @@ namespace eval self {
 	if {$slotValue eq {}} {
 	    error "Slot $obj $slotName not found" 
 	}
-	return [evalSlot $obj $slotValue $slotArgs]
-
-	
+	return [evalSlot $obj $slotValue $slotArgs]	
     }
 
     proc evalSlot {obj slotValue {slotArgs {}}} {
@@ -61,14 +72,18 @@ namespace eval self {
     proc newObject {name parent} {
 	interp alias {} $name {} self::dispatch $name [list slots [list parents* [list v $parent]]]
     }
+
+    proc findCachedSlot {obj slotName} {
+	variable cachedLookup
+	if {[dict exists $cachedLookup $obj $slotName]} {
+	    return [dict get $cachedLookup $obj $slotName]
+	}
+    }
     
     proc findInheritedSlot {obj parents slotName} {
 	variable cachedLookup
 	if {$parents eq {}} {
 	    return
-	}
-	if {[dict exists $cachedLookup $obj $slotName]} {
-	    return [dict get $cachedLookup $obj $slotName]
 	}
 	set visited {}
 	set tovisit $parents
@@ -77,7 +92,7 @@ namespace eval self {
 	    if {[lsearch $visited $current] > -1} continue
 	    if {[dict exists [$current _state] slots $slotName]} {
 		set slotValue [dict get [$current _state] slots $slotName]
-		dict set cachedLookup $obj $slotName $slotValue
+		dict set cachedLookup $slotName $obj $slotValue
 		return $slotValue
 	    }
 	    lappend visited $current
@@ -85,8 +100,8 @@ namespace eval self {
 	}
 	return {}
     }
-  
 }
+
 
 self::newObject Object {}
 

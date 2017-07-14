@@ -2,6 +2,8 @@
 # slots with _ are used internally and should not be changed
 
 namespace eval self {
+    # cache method lookups as {obj method {epoch cachedEpoch method cachedMethod}}
+    variable cachedLookup {}
     proc dispatch {obj state args} {
 	set slotArgs [lassign $args slotName]
 	if {$slotName eq "_state"} {
@@ -11,10 +13,13 @@ namespace eval self {
 	    if {[llength $slotArgs]!=1} {
 		error "clone name"
 	    }
-	    interp alias {} $args {} self::dispatch $args [list parents* [list v $obj]]
+       
+	    newObject $slotArgs $obj
 	    return 
 	}
 	if {$slotName eq "slot"} {
+	    variable cachedLookup
+	    set cachedLookup {}
 	    if {[llength $slotArgs]==2} {
 		# Value slot
 		set type v
@@ -25,27 +30,68 @@ namespace eval self {
 		error "slot name value | slot name args body"
 	    }
 	    set rest [lassign $slotArgs newSlotName]
-	    dict set state $newSlotName [list $type  {*}$rest]
+	    dict set state slots $newSlotName [list $type  {*}$rest]
 	    interp alias {} $obj {} self::dispatch $obj $state
 	    return
 	}
-	set slot [dict get $state $slotName]
-	set slotBody [lassign $slot slotType slotValOrArgs]
-	if {$slotType eq "v"} {return $slotValOrArgs}
-	if {$slotType eq "m"} {
-  
-	    return [apply [list [list self {*}$slotValOrArgs] {*}$slotBody] $obj {*}$slotArgs] 
-	    
+	if {[dict exists $state slots $slotName]} {
+	    set slotValue [dict get $state slots $slotName]
+	} elseif {[dict exists $state slots parents*]} {
+	    set parents	[evalSlot $obj [dict get $state slots parents*]]
+	    set slotValue [findInheritedSlot $obj $parents $slotName]
+	} 
+	if {$slotValue eq {}} {
+	    error "Slot $obj $slotName not found" 
 	}
-	error "Unknown slot type $slotType" 
+	return [evalSlot $obj $slotValue $slotArgs]
+
 	
     }
-    proc getSlot {obj state slot} {
-	return [dict get $state slots $slot]
+
+    proc evalSlot {obj slotValue {slotArgs {}}} {
+	# puts "Executing slot $slotName -> $slotValue"
+	set slotBody [lassign $slotValue slotType slotValOrArgs]
+	if {$slotType eq "v"} {return $slotValOrArgs}
+	if {$slotType eq "m"} {	    
+	    return [apply [list [list self {*}$slotValOrArgs] {*}$slotBody] $obj {*}$slotArgs]    
+	}
+	error "Unknown slot type $slotType" 
     }
+
+    proc newObject {name parent} {
+	interp alias {} $name {} self::dispatch $name [list slots [list parents* [list v $parent]]]
+    }
+    
+    proc findInheritedSlot {obj parents slotName} {
+	variable cachedLookup
+	if {$parents eq {}} {
+	    return
+	}
+	if {[dict exists $cachedLookup $obj $slotName]} {
+	    return [dict get $cachedLookup $obj $slotName]
+	}
+	set visited {}
+	set tovisit $parents
+	while {[llength $tovisit] > 0} {
+	    set tovisit [lassign $tovisit current]
+	    if {[lsearch $visited $current] > -1} continue
+	    if {[dict exists [$current _state] slots $slotName]} {
+		set slotValue [dict get [$current _state] slots $slotName]
+		dict set cachedLookup $obj $slotName $slotValue
+		return $slotValue
+	    }
+	    lappend visited $current
+	    lappend tovisit {*}[$obj parents*]
+	}
+	return {}
+    }
+  
 }
 
-interp alias {} Object {} self::dispatch Object [list parents* {v {}}]
+self::newObject Object {}
+
+
+
 
 
 

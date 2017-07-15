@@ -47,26 +47,26 @@ namespace eval self {
       interp alias {} $obj {} self::dispatch $obj $state
       return
     }
-    lassign [findSlot $obj $state $slotName] implementor slotValue
+    lassign [findSlot $obj $state $slotName] implementer slotValue
     if {$slotValue eq {}} {
-      lassign [findSlot $obj $state unknown] implementor slotValue
+      lassign [findSlot $obj $state unknown] implementer slotValue
       if {$slotValue eq {}} {
         error "slot $slotName not found for $obj" 
       } else {
-        return [evalSlot $obj $implementor unknown $slotValue $slotName {*}$slotArgs]	
+        return [evalSlot $obj $implementer unknown $slotValue $slotName {*}$slotArgs]	
       }
     }
-    return [evalSlot $obj $implementor $slotName $slotValue {*}$slotArgs]	
+    return [evalSlot $obj $implementer $slotName $slotValue {*}$slotArgs]	
   }
 
   proc findSlot {obj state slotName} {
     if {[dict exists $state slots $slotName]} {
-      set implementor $obj 
+      set implementer $obj 
       set slotValue [dict get $state slots $slotName]
     } elseif {[dict exists $state slots parents*]} {
-      lassign [findInheritedSlot $obj $slotName] implementor slotValue
+      lassign [findInheritedSlot $obj $slotName] implementer slotValue
     } 
-    return [list $implementor $slotValue]
+    return [list $implementer $slotValue]
   }
 
   proc dispatchSelf {self {slotName {}} args} {
@@ -76,24 +76,24 @@ namespace eval self {
      return [$self $slotName {*}$args]
   }
 
-  proc dispatchNext {self implementor slotName args} {
-    # puts "Dispatching next from $implementor.$slotName self: $self"
-    lassign [findInheritedSlot $implementor $slotName] implementor slotValue 
+  proc dispatchNext {self implementer slotName args} {
+    # puts "Dispatching next from $implementer.$slotName self: $self"
+    lassign [findInheritedSlot $implementer $slotName] implementer slotValue 
     if {$slotValue eq {}} {
-      error "Slot $slotName not found in parents of $implementor"
+      error "Slot $slotName not found in parents of $implementer"
     }
-    # puts "Next found $implementor.$slotValue"
-    return [evalSlot $self $implementor $slotName $slotValue {*}$args]
+    # puts "Next found $implementer.$slotValue"
+    return [evalSlot $self $implementer $slotName $slotValue {*}$args]
   }
 
-  proc evalSlot {obj implementor slotName slotValue args} {
+  proc evalSlot {obj implementer slotName slotValue args} {
     # puts "Executing slot $slotName -> $slotValue -> $args"
     set slotBody [lassign $slotValue slotType slotValOrArgs]
     if {$slotType eq "v"} {return $slotValOrArgs}
     if {$slotType eq "m"} {	    
       set currentNext [interp alias {} next]
       set currentSelf [interp alias {} self]
-      interp alias {} next {} self::dispatchNext $obj $implementor $slotName {*}$args
+      interp alias {} next {} self::dispatchNext $obj $implementer $slotName {*}$args
       interp alias {} self {} self::dispatchSelf $obj
       # puts [llength $args]
       # puts $args

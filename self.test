@@ -1,0 +1,15 @@
+tcl::tm::path add .
+package require self  
+
+package require tcltest
+namespace import ::tcltest::*
+
+test selfGlobal {} -body {
+  self
+} -returnCodes {error} -result "not in slot scope"
+
+test nextGlobal {} -body {
+  next
+} -returnCodes {error} -result "not in slot scope"
+
+cleanupTests

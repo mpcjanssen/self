@@ -4,6 +4,7 @@
 namespace eval self {
   variable cachedLookup {}
   proc dispatch {obj state args} {
+    # puts "Dispatching $obj $args"
     variable cachedLookup
     set slotArgs [lassign $args slotName]
     if {$slotName eq "_state"} {
@@ -55,26 +56,40 @@ namespace eval self {
     if {$slotValue eq {}} {
       error "Slot $obj $slotName not found" 
     }
-    return [evalSlot $obj $implementor $slotValue $slotArgs]	
+    return [evalSlot $obj $implementor $slotName $slotValue {*}$slotArgs]	
+  }
+
+  proc dispatchSelf {self {slotName {}} args} {
+     if {$slotName eq {}} {
+       return $self
+     }
+     return [$self $slotName {*}$args]
   }
 
   proc dispatchNext {self implementor slotName args} {
+    # puts "Dispatching next from $implementor.$slotName self: $self"
     lassign [findInheritedSlot $implementor $slotName] implementor slotValue 
     if {$slotValue eq {}} {
       error "Slot $slotName not found in parents of $implementor"
     }
-    return [evalSlot $self $implementor $slotValue $args]
+    # puts "Next found $implementor.$slotValue"
+    return [evalSlot $self $implementor $slotName $slotValue {*}$args]
   }
 
-  proc evalSlot {obj implementor slotValue {slotArgs {}}} {
-  # puts "Executing slot $slotName -> $slotValue"
+  proc evalSlot {obj implementor slotName slotValue args} {
+    # puts "Executing slot $slotName -> $slotValue -> $args"
     set slotBody [lassign $slotValue slotType slotValOrArgs]
     if {$slotType eq "v"} {return $slotValOrArgs}
     if {$slotType eq "m"} {	    
       set currentNext [interp alias {} next]
-      interp alias {} next {} self::dispatchNext $obj $implementor
-      set result [apply [list [list self {*}$slotValOrArgs] {*}$slotBody] $obj {*}$slotArgs]    
-      interp alias {} next {} $currentNext
+      set currentSelf [interp alias {} self]
+      interp alias {} next {} self::dispatchNext $obj $implementor $slotName {*}$args
+      interp alias {} self {} self::dispatchSelf $obj
+      # puts [llength $args]
+      # puts $args
+      set result [apply [list $slotValOrArgs {*}$slotBody] {*}$args]    
+      interp alias {} next {} {*}$currentNext
+      interp alias {} self {} {*}$currentSelf
       return $result
     }
     error "Unknown slot type $slotType" 
@@ -89,14 +104,16 @@ namespace eval self {
   }
 
   proc findInheritedSlot {startObj slotName} {
+    # puts "Finding inherited slot $slotName from $startObj"
     variable cachedLookup
     if {[dict exists $cachedLookup $slotName $startObj]} {
+       # puts "Using cached $slotName for $startObj"
        return [dict get $cachedLookup $slotName $startObj]
     }
 
     set state [$startObj _state]
     if {[dict exists $state slots parents*]} {
-      set parents	[evalSlot $startObj $startObj [dict get $state slots parents*]]
+      set parents	[evalSlot $startObj $startObj $slotName [dict get $state slots parents*]]
     } else {
       return [list {} {}]
     }
@@ -117,11 +134,17 @@ namespace eval self {
   }
 }
 
-interp alias {} next {} error "Not in method scope"
+interp alias {} next {} error "not in slot scope"
+interp alias {} self {} error "not in slot scope"
 self::newClone Object {}
 
 
+if {[info exists argv0] && $argv0 eq [info script]} {
+  package require tcltest
+  namespace import ::tcltest::*
 
+  runAllTests  
+}
 
 
 

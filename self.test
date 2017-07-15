@@ -5,10 +5,12 @@ package require tcltest
 namespace import ::tcltest::*
 
 test selfGlobal {} -body {
+  # [self] in global scope is an error
   self
 } -returnCodes {error} -result "not in slot scope"
 
 test nextGlobal {} -body {
+  # [next] in global scope is an error
   next
 } -returnCodes {error} -result "not in slot scope"
 

@@ -4,13 +4,11 @@ package require self
 package require tcltest
 namespace import ::tcltest::*
 
-test selfGlobal {} -body {
-  # [self] in global scope is an error
+test selfGlobal {[self] in global scope is an error} -body {
   self
 } -returnCodes {error} -result "not in slot scope"
 
-test nextGlobal {} -body {
-  # [next] in global scope is an error
+test nextGlobal {[next] in global scope is an error} -body {
   next
 } -returnCodes {error} -result "not in slot scope"
 
@@ -25,5 +23,7 @@ test unknown {} -body {
   }
   unknownTest dne arg1 arg2
 } -result [list dne {arg1 arg2}]
+
+test clone {}
 
 cleanupTests

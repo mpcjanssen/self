@@ -2,7 +2,9 @@
 # slots with _ are used internally and should not be changed
 
 namespace eval self {
+  variable cachedLookup {}
   proc dispatch {obj state args} {
+    variable cachedLookup
     set slotArgs [lassign $args slotName]
     if {$slotName eq "_state"} {
       return $state
@@ -33,7 +35,13 @@ namespace eval self {
       } else {
         error "$slotName: value | $slotName: name args body"
       }
-
+      if {$slotName eq "parents*"} {
+      # inheritance tree change invalidate cache
+      set cachedLookup {}
+      } else {
+      # invalidate cache for this slot
+        dict unset cachedLookup $slotName
+      }
       dict set state slots $slotName [list $type  {*}$slotArgs]
       interp alias {} $obj {} self::dispatch $obj $state
       return
@@ -42,8 +50,7 @@ namespace eval self {
       set implementor $obj 
       set slotValue [dict get $state slots $slotName]
     } elseif {[dict exists $state slots parents*]} {
-      set parents	[evalSlot $obj $obj [dict get $state slots parents*]]
-      lassign [findInheritedSlot $obj $parents $slotName] implementor slotValue
+      lassign [findInheritedSlot $obj $slotName] implementor slotValue
     } 
     if {$slotValue eq {}} {
       error "Slot $obj $slotName not found" 
@@ -52,11 +59,10 @@ namespace eval self {
   }
 
   proc dispatchNext {self implementor slotName args} {
-    lassign [findInheritedSlot $self [$implementor parents*] $slotName] implementor slotValue 
+    lassign [findInheritedSlot $implementor $slotName] implementor slotValue 
     if {$slotValue eq {}} {
       error "Slot $slotName not found in parents of $implementor"
     }
-    puts $slotValue
     return [evalSlot $self $implementor $slotValue $args]
   }
 
@@ -82,9 +88,17 @@ namespace eval self {
     interp alias {} $name {} self::dispatch $name [$parent _state]
   }
 
-  proc findInheritedSlot {obj parents slotName} {
-    if {$parents eq {}} {
-      return
+  proc findInheritedSlot {startObj slotName} {
+    variable cachedLookup
+    if {[dict exists $cachedLookup $slotName $startObj]} {
+       return [dict get $cachedLookup $slotName $startObj]
+    }
+
+    set state [$startObj _state]
+    if {[dict exists $state slots parents*]} {
+      set parents	[evalSlot $startObj $startObj [dict get $state slots parents*]]
+    } else {
+      return [list {} {}]
     }
     set visited {}
     set tovisit $parents
@@ -93,12 +107,13 @@ namespace eval self {
       if {[lsearch $visited $current] > -1} continue
       if {[dict exists [$current _state] slots $slotName]} {
         set slotValue [dict get [$current _state] slots $slotName]
+        dict set cachedLookup $slotName $startObj [list $current $slotValue]
         return [list $current $slotValue]
       }
       lappend visited $current
-      lappend tovisit {*}[$obj parents*]
+      lappend tovisit {*}[$current parents*]
     }
-    return {}
+    return [list {} {}]
   }
 }
 

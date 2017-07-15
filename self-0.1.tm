@@ -13,8 +13,14 @@ namespace eval self {
       if {[llength $slotArgs]!=1} {
         error "clone name"
       }
-
-      newObject $slotArgs $obj
+      newClone $slotArgs $obj
+      return 
+    }
+    if {$slotName eq "copy"} {
+      if {[llength $slotArgs]!=1} {
+        error "copy name"
+      }
+      newCopy $slotArgs $obj
       return 
     }
     if {[string index $slotName end] eq ":"} {
@@ -69,8 +75,12 @@ namespace eval self {
     error "Unknown slot type $slotType" 
   }
 
-  proc newObject {name parent} {
+  proc newClone {name parent} {
     interp alias {} $name {} self::dispatch $name [list slots [list parents* [list v $parent]]]
+  }
+
+  proc newCopy {name parent} {
+    interp alias {} $name {} self::dispatch $name [$parent _state]
   }
 
   proc findCachedSlot {obj slotName} {
@@ -103,7 +113,7 @@ namespace eval self {
 }
 
 
-self::newObject Object {}
+self::newClone Object {}
 
 
 

@@ -14,4 +14,16 @@ test nextGlobal {} -body {
   next
 } -returnCodes {error} -result "not in slot scope"
 
+test slotNotFound {} -body {
+  Object dne
+} -returnCodes {error} -result "slot dne not found for Object"
+
+test unknown {} -body {
+  Object copy unknownTest
+  unknownTest unknown: {slotName args} {
+    return [list $slotName $args]
+  }
+  unknownTest dne arg1 arg2
+} -result [list dne {arg1 arg2}]
+
 cleanupTests

@@ -47,16 +47,26 @@ namespace eval self {
       interp alias {} $obj {} self::dispatch $obj $state
       return
     }
+    lassign [findSlot $obj $state $slotName] implementor slotValue
+    if {$slotValue eq {}} {
+      lassign [findSlot $obj $state unknown] implementor slotValue
+      if {$slotValue eq {}} {
+        error "slot $slotName not found for $obj" 
+      } else {
+        return [evalSlot $obj $implementor unknown $slotValue $slotName {*}$slotArgs]	
+      }
+    }
+    return [evalSlot $obj $implementor $slotName $slotValue {*}$slotArgs]	
+  }
+
+  proc findSlot {obj state slotName} {
     if {[dict exists $state slots $slotName]} {
       set implementor $obj 
       set slotValue [dict get $state slots $slotName]
     } elseif {[dict exists $state slots parents*]} {
       lassign [findInheritedSlot $obj $slotName] implementor slotValue
     } 
-    if {$slotValue eq {}} {
-      error "Slot $obj $slotName not found" 
-    }
-    return [evalSlot $obj $implementor $slotName $slotValue {*}$slotArgs]	
+    return [list $implementor $slotValue]
   }
 
   proc dispatchSelf {self {slotName {}} args} {

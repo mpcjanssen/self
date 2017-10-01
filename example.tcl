@@ -52,3 +52,20 @@ debug test: {args} {puts "called test with $args"; next}
 
 a parents*: {debug}
 a test 1 2 3
+
+# Poor man's namespace
+Object clone ns
+
+ns eval: body {
+  uplevel 1 $body
+}
+
+ns clone newns
+newns eval {
+  [self] proc1: {} {puts proc1}
+  [self] proc2: {} {puts "proc2 in \"namespace\" [self]"}
+}
+
+newns proc1
+newns proc2
+

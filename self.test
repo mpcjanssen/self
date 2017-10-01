@@ -26,4 +26,13 @@ test unknown {} -body {
 
 test clone {}
 
+test override_clone {} -body {
+  Object clone a
+  a clone: new { next ; $new aval: a }
+  a clone b
+  b aval
+} -result {a}
+
+
+
 cleanupTests

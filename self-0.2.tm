@@ -7,15 +7,11 @@ namespace eval self {
     # puts "Dispatching $obj $args"
     variable cachedLookup
     set slotArgs [lassign $args slotName]
+    if {$slotName eq {}} {
+      error "invalid # args: should be \"$obj slotName ....\""
+    }
     if {$slotName eq "_state"} {
       return $state
-    }
-    if {$slotName eq "clone"} {
-      if {[llength $slotArgs]!=1} {
-        error "clone name"
-      }
-      newClone $slotArgs $obj
-      return 
     }
     if {$slotName eq "copy"} {
       if {[llength $slotArgs]!=1} {
@@ -78,12 +74,12 @@ namespace eval self {
 
   proc dispatchNext {self implementer slotName args} {
     # puts "Dispatching next from $implementer.$slotName self: $self"
-    lassign [findInheritedSlot $implementer $slotName] implementer slotValue 
+    lassign [findInheritedSlot $implementer $slotName] nextimplementer slotValue 
     if {$slotValue eq {}} {
       error "Slot $slotName not found in parents of $implementer"
     }
-    # puts "Next found $implementer.$slotValue"
-    return [evalSlot $self $implementer $slotName $slotValue {*}$args]
+    # puts "Next found $nextimplementer.$slotValue"
+    return [evalSlot $self $nextimplementer $slotName $slotValue {*}$args]
   }
 
   proc evalSlot {obj implementer slotName slotValue args} {
@@ -112,6 +108,7 @@ namespace eval self {
   proc newCopy {name parent} {
     interp alias {} $name {} self::dispatch $name [$parent _state]
   }
+
 
   proc findInheritedSlot {startObj slotName} {
     # puts "Finding inherited slot $slotName from $startObj"
@@ -142,11 +139,13 @@ namespace eval self {
     }
     return [list {} {}]
   }
+  newClone Object {}
+  Object clone: new {::self::newClone $new [self]}
+  Object copy: new {::self::newCopy $new [self]}
 }
 
 interp alias {} next {} error "not in slot scope"
 interp alias {} self {} error "not in slot scope"
-self::newClone Object {}
 
 
 if {[info exists argv0] && $argv0 eq [info script]} {

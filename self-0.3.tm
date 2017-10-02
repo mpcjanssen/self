@@ -3,6 +3,7 @@
 
 namespace eval self {
   variable cachedLookup {}
+  variable callContext {}
   proc dispatch {obj state args} {
     # puts "Dispatching $obj $args"
     variable cachedLookup
@@ -58,14 +59,27 @@ namespace eval self {
     return [list $implementer $slotValue]
   }
 
-  proc dispatchSelf {self {slotName {}} args} {
+  proc dispatchSelf {{slotName {}} args} {
+    variable callContext
+    if {$callContext eq {}} {
+      error "not in slot scope"
+    }
+    set self [dict get $callContext self]
      if {$slotName eq {}} {
        return $self
      }
      return [$self $slotName {*}$args]
   }
 
-  proc dispatchNext {self implementer slotName args} {
+  proc dispatchNext {args} {
+    variable callContext
+    if {$callContext eq {}} {
+      error "not in slot scope"
+    }
+    set implementer [dict get $callContext implementer]
+    set slotName [dict get $callContext slotName]
+    set self [dict get $callContext self]
+    set args [dict get $callContext args]
     # puts "Dispatching next from $implementer.$slotName self: $self"
     lassign [findInheritedSlot $implementer $slotName] nextimplementer slotValue 
     if {$slotValue eq {}} {
@@ -76,19 +90,21 @@ namespace eval self {
   }
 
   proc evalSlot {obj implementer slotName slotValue args} {
+    variable callContext
     # puts "Executing slot $slotName -> $slotValue -> $args"
     set slotBody [lassign $slotValue slotType slotValOrArgs]
     if {$slotType eq "v"} {return $slotValOrArgs}
     if {$slotType eq "m"} {	    
-      set currentNext [interp alias {} next]
-      set currentSelf [interp alias {} self]
-      interp alias {} next {} self::dispatchNext $obj $implementer $slotName {*}$args
-      interp alias {} self {} self::dispatchSelf $obj
+      set currentContext $callContext
+      set callContext {}
+      dict set callContext self $obj
+      dict set callContext implementer $implementer
+      dict set callContext slotName $slotName
+      dict set callContext args $args
       # puts [llength $args]
       # puts $args
       set result [apply [list $slotValOrArgs {*}$slotBody] {*}$args]    
-      interp alias {} next {} {*}$currentNext
-      interp alias {} self {} {*}$currentSelf
+      set callContext $currentContext
       return $result
     }
     error "Unknown slot type $slotType" 
@@ -135,10 +151,10 @@ namespace eval self {
   newClone Object {}
   Object clone: new {::self::newClone $new [self]}
   Object copy: new {::self::newCopy $new [self]}
+  interp alias {} next {} ::self::dispatchNext 
+  interp alias {} self {} ::self::dispatchSelf
 }
 
-interp alias {} next {} error "not in slot scope"
-interp alias {} self {} error "not in slot scope"
 
 
 if {[info exists argv0] && $argv0 eq [info script]} {

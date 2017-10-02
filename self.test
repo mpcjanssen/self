@@ -34,5 +34,12 @@ test override_clone {} -body {
 } -result {a}
 
 
+test override_copy {} -body {
+  Object clone a
+  a copy: new { next ; $new aval: a }
+  a copy b
+  b aval
+} -result {a}
+
 
 cleanupTests

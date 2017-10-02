@@ -13,13 +13,6 @@ namespace eval self {
     if {$slotName eq "_state"} {
       return $state
     }
-    if {$slotName eq "copy"} {
-      if {[llength $slotArgs]!=1} {
-        error "copy name"
-      }
-      newCopy $slotArgs $obj
-      return 
-    }
     if {[string index $slotName end] eq ":"} {
       set slotName [string range $slotName 0 end-1]
 
